@@ -402,6 +402,17 @@ function playerHTML(id){
   <h4>แก้ไขข้อมูล</h4><div class="addrow"><input type="text" id="ename" value="${esc(p.name)}" aria-label="ชื่อ"><select id="elv" aria-label="ระดับมือ">${LV.map((l,i)=>`<option value="${i}" ${i===p.lv?'selected':''}>${l}</option>`).join('')}</select><button class="btn sec" data-a="saveP" data-x="${id}">บันทึก</button></div>
   ${p.st!=='play'&&p.g===0?`<button class="btn sec" data-a="delP" data-x="${id}" style="color:var(--danger)">ลบชื่อนี้</button>`:''}`;
 }
+function confirmGameHTML(ci,kind){
+  const c=S.courts[ci],m=c.m,team=ids=>ids.map(id=>esc(P(id).name)).join(' + ');
+  const match=`<p class="mestat">${team(m.a)} <span class="vs">VS</span> ${team(m.b)}</p><p class="hint">สนาม ${c.id} · เล่นมาแล้ว <span data-since="${m.t}">${clock(m.t)}</span></p>`;
+  if(kind==='end'){
+    const nx=S.opt.auto?pick():null;
+    return `<h3>จบเกมสนาม ${c.id}?</h3>${match}<p class="hint">ทั้ง 4 คนจะได้ +1 เกม${nx?` แล้ว ${esc(nx.a.concat(nx.b).map(p=>p.name).join(', '))} ลงสนามต่อ`:''}</p>
+    <button class="btn pri" data-a="endok" data-x="${ci}:${m.t}">ยืนยัน จบเกม</button>`;
+  }
+  return `<h3>ยกเลิกเกมสนาม ${c.id}?</h3>${match}<p class="hint">เกมนี้จะไม่ถูกนับ ทั้ง 4 คนกลับไปรอคิว และสนามจะว่าง</p>
+  <button class="btn warn" data-a="cancelok" data-x="${ci}:${m.t}">ยืนยัน ยกเลิกเกม</button>`;
+}
 function settingsHTML(){
   return `<h3>ตั้งค่า</h3><h4>ชื่อก๊วน (แสดงบนหน้าดูคิวของผู้เล่น)</h4><input type="text" id="optclub" placeholder="เช่น ก๊วนแอบแซ่บ" value="${esc(S.opt.club||'')}">
   <h4>จำนวนสนาม</h4><div class="stepper"><button data-a="courts" data-x="-1" aria-label="ลดสนาม">−</button><b>${S.courts.length}</b><button data-a="courts" data-x="1" aria-label="เพิ่มสนาม">+</button></div>
@@ -553,8 +564,12 @@ const H={
   tab:x=>{tab=x;render();scrollTo(0,0)},
   undo, settings:()=>openSheet(settingsHTML()), close:closeSheet,
   fill:x=>{act(()=>fillCourt(+x))},
-  end:x=>{const c=S.courts[+x];act(()=>endMatch(+x));toast(`จบเกมสนาม ${c.id}`+(c.m?' · ชุดถัดไปลงแล้ว':''))},
-  cancel:x=>{closeSheet();act(()=>cancelMatch(+x));toast('ยกเลิกเกมแล้ว ทั้ง 4 คนกลับไปรอคิว')},
+  // Ending or cancelling a game always goes through a confirm sheet, so a stray tap does nothing;
+  // the confirm button carries that game's start time, so a double tap can't also end the next game
+  end:x=>{if(S.courts[+x]?.m)openSheet(confirmGameHTML(+x,'end'))},
+  cancel:x=>{if(S.courts[+x]?.m)openSheet(confirmGameHTML(+x,'cancel'))},
+  endok:x=>{const [ci,t]=x.split(':').map(Number),c=S.courts[ci];closeSheet();if(c?.m?.t!==t)return;act(()=>endMatch(ci));toast(`จบเกมสนาม ${c.id}`+(c.m?' · ชุดถัดไปลงแล้ว':''))},
+  cancelok:x=>{const [ci,t]=x.split(':').map(Number),c=S.courts[ci];closeSheet();if(c?.m?.t!==t)return;act(()=>cancelMatch(ci));toast('ยกเลิกเกมแล้ว ทั้ง 4 คนกลับไปรอคิว')},
   tapcourt:x=>{const [ci,id]=x.split(':').map(Number);openSheet(subHTML(ci,id))},
   subout:x=>{const [ci,id]=x.split(':').map(Number);openSheet(subHTML(ci,id))},
   subin:x=>{const [ci,o,i]=x.split(':').map(Number);const st=$('input[name=outst]:checked').value,cnt=$('#subcount').checked;closeSheet();act(()=>substitute(ci,o,i,st,cnt));toast(`${P(i).name} ลงแทน ${P(o).name}`)},
