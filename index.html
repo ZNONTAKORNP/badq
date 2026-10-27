@@ -145,6 +145,14 @@ details[open]{display:flex;flex-direction:column;gap:8px}
 .hist li{padding:9px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
 .hist li:first-child{border-top:0}
 .hist .hm{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hist mark{background:var(--accent);color:#2a1f00;border-radius:4px;padding:0 4px}
+#histpanel{scroll-margin-top:130px}
+.who{display:flex;flex-direction:column;gap:6px;background:var(--bg);border-radius:10px;padding:12px}
+.who h4{margin:2px 0 0;font-size:13px;color:var(--muted);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:14px}
+.chips b{font-family:var(--font-display);color:var(--accent-ink)}
+.bar .nm button{border:0;background:none;padding:0;text-align:left;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
 
 /* sheet */
 .sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center}
@@ -208,7 +216,7 @@ div.pc,div.qi{cursor:default}
 const LV=['BG','N','S','P-','P'];
 const ST={play:'กำลังเล่น',wait:'รอคิว',rest:'พัก',left:'กลับแล้ว'};
 const KEY='kiw-gang-bad-v1';
-let S, UNDO=[], tab='court';
+let S, UNDO=[], tab='court', histQ='';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const P=id=>S.players.find(p=>p.id===id);
@@ -348,9 +356,9 @@ function playersView(){
   const list=S.players.slice().sort((a,b)=>order[a.st]-order[b.st]||a.join-b.join);
   return `<section class="panel"><h2>เพิ่มผู้เล่น</h2>
     <form id="addf" class="addrow"><input type="text" id="pname" placeholder="ชื่อเล่น" autocomplete="off" aria-label="ชื่อเล่น">
-    <select id="plv" aria-label="ระดับมือ">${LV.map((l,i)=>`<option value="${i}" ${i===2?'selected':''}>${l}</option>`).join('')}</select>
+    <select id="plv" aria-label="ระดับมือ">${LV.map((l,i)=>`<option value="${i}" ${i===0?'selected':''}>${l}</option>`).join('')}</select>
     <button class="btn pri" type="submit">เพิ่ม</button></form>
-    <details><summary>วางรายชื่อหลายคนพร้อมกัน</summary><textarea id="pbulk" rows="5" placeholder="บรรทัดละ 1 ชื่อ (วางจากกลุ่ม LINE ได้)"></textarea><button class="btn sec" data-a="bulk">เพิ่มทั้งหมด (มือ S)</button></details>
+    <details><summary>วางรายชื่อหลายคนพร้อมกัน</summary><textarea id="pbulk" rows="5" placeholder="บรรทัดละ 1 ชื่อ (วางจากกลุ่ม LINE ได้)"></textarea><button class="btn sec" data-a="bulk">เพิ่มทั้งหมด (มือ BG)</button></details>
     <p class="hint">คนที่มาทีหลังจะเริ่มนับเกมเท่ากับคนที่เล่นน้อยที่สุดตอนนั้น จะได้ไม่ลงติดกันหลายเกม</p></section>
     <section class="plist">${list.map(p=>`<button class="prow ${p.st}" data-a="tapp" data-x="${p.id}"><span><span class="qname">${esc(p.name)}</span><span class="lv">${LV[p.lv]}</span></span><span class="pill ${p.st}">${ST[p.st]}</span><span class="qg"><b>${p.g}</b><small>เกม</small></span></button>`).join('')||'<p class="hint">ยังไม่มีรายชื่อ</p>'}</section>`;
 }
@@ -360,9 +368,39 @@ function summaryView(){
   const here=S.players.filter(p=>p.st!=='left');
   const lo=here.length?Math.min(...here.map(p=>p.g)):0, hi=here.length?Math.max(...here.map(p=>p.g)):0;
   return `<div class="tiles"><div class="tile"><b>${S.hist.length}</b><span>เกมที่จบแล้ว</span></div><div class="tile"><b>${played.length}</b><span>คนที่มาเล่น</span></div><div class="tile"><b>${lo}–${hi}</b><span>เกมต่อคน (น้อยสุด–มากสุด)</span></div></div>
-  <section class="panel"><h2>จำนวนเกมต่อคน</h2><ul class="bars">${played.slice().sort((a,b)=>b.g-a.g||a.join-b.join).map(p=>`<li class="bar"><span class="nm">${esc(p.name)}</span><span class="track"><i style="width:${p.g/max*100}%"></i></span><b>${p.g}</b></li>`).join('')}</ul>
+  <section class="panel"><h2>จำนวนเกมต่อคน</h2><ul class="bars">${played.slice().sort((a,b)=>b.g-a.g||a.join-b.join).map(p=>`<li class="bar"><span class="nm"><button data-a="histname" data-x="${esc(p.name)}">${esc(p.name)}</button></span><span class="track"><i style="width:${p.g/max*100}%"></i></span><b>${p.g}</b></li>`).join('')}</ul>
   <button class="btn sec" data-a="copy">คัดลอกสรุปไปวางใน LINE</button></section>
-  <section class="panel"><h2>ประวัติเกม</h2>${S.hist.length?`<ol class="hist">${S.hist.map((h,i)=>({h,i})).reverse().map(({h,i})=>`<li><span>${esc(h.na.join(' + '))} <span class="vs">VS</span> ${esc(h.nb.join(' + '))}</span><span class="hm">เกม #${i+1} · สนาม ${h.c} · ${hhmm(h.t0)}–${hhmm(h.t1)} (${Math.round((h.t1-h.t0)/60000)} นาที)${h.subs?' · มีเปลี่ยนตัว':''}</span></li>`).join('')}</ol>`:'<p class="hint">ยังไม่มีเกมที่จบ</p>'}</section>`;
+  <section class="panel" id="histpanel"><h2>ประวัติเกม</h2>${S.hist.length?`<div class="addrow" style="grid-template-columns:minmax(0,1fr) auto"><input type="search" id="histq" placeholder="ค้นหาชื่อ เช่น ปุ๋ย" value="${esc(histQ)}" autocomplete="off" aria-label="ค้นหาชื่อในประวัติเกม" list="histnames"><button class="btn sec" data-a="histclear">ล้าง</button></div><datalist id="histnames">${histNames().map(n=>`<option value="${esc(n)}">`).join('')}</datalist><div id="histbody">${histBody()}</div>`:'<p class="hint">ยังไม่มีเกมที่จบ</p>'}</section>`;
+}
+// History search: filter games by name; when the search points at one player, list who they partnered and faced
+function histNames(){return [...new Set(S.hist.flatMap(h=>[...h.na,...h.nb]))].sort((a,b)=>a.localeCompare(b,'th'))}
+function histBody(){
+  const q=histQ.trim().toLowerCase();
+  const all=S.hist.map((h,i)=>({h,i}));
+  const games=q?all.filter(({h})=>[...h.na,...h.nb].some(n=>n.toLowerCase().includes(q))):all;
+  const hits=q?histNames().filter(n=>n.toLowerCase().includes(q)):[];
+  const who=hits.find(n=>n.toLowerCase()===q)||(hits.length===1?hits[0]:null);
+  const mark=n=>n===who?`<mark>${esc(n)}</mark>`:esc(n);
+  let head='';
+  if(who){
+    const part={},opp={};
+    for(const {h} of games){
+      const mine=h.na.includes(who)?h.na:h.nb.includes(who)?h.nb:null; if(!mine)continue;
+      const them=mine===h.na?h.nb:h.na;
+      mine.filter(n=>n!==who).forEach(n=>part[n]=(part[n]||0)+1);
+      them.forEach(n=>opp[n]=(opp[n]||0)+1);
+    }
+    const chips=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'th')).map(([n,c])=>`<button data-a="histname" data-x="${esc(n)}">${esc(n)}${c>1?` <b>×${c}</b>`:''}</button>`).join('');
+    const n=games.filter(({h})=>h.na.includes(who)||h.nb.includes(who)).length;
+    head=`<div class="who"><p class="mestat">${esc(who)} · เล่น ${n} เกม</p>
+      <h4>คู่ด้วย</h4><div class="chips">${chips(part)||'<span class="hint">-</span>'}</div>
+      <h4>เจอฝั่งตรงข้าม</h4><div class="chips">${chips(opp)||'<span class="hint">-</span>'}</div></div>`;
+  }else if(q&&hits.length>1)head=`<p class="hint">พบหลายชื่อ แตะเลือก: </p><div class="chips">${hits.map(n=>`<button data-a="histname" data-x="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
+  if(q&&!games.length)return head+`<p class="hint">ไม่พบเกมที่มีชื่อ "${esc(histQ.trim())}"</p>`;
+  return head+`<ol class="hist">${games.slice().reverse().map(({h,i})=>{
+    let with_='';
+    if(who){const mine=h.na.includes(who)?h.na:h.nb;const them=mine===h.na?h.nb:h.na;with_=`<span class="hm">คู่กับ ${esc(mine.filter(n=>n!==who).join(', ')||'-')} · เจอ ${esc(them.join(' + '))}</span>`}
+    return `<li><span>${h.na.map(mark).join(' + ')} <span class="vs">VS</span> ${h.nb.map(mark).join(' + ')}</span>${with_}<span class="hm">เกม #${i+1} · สนาม ${h.c} · ${hhmm(h.t0)}–${hhmm(h.t1)} (${Math.round((h.t1-h.t0)/60000)} นาที)${h.subs?' · มีเปลี่ยนตัว':''}</span></li>`}).join('')}</ol>`;
 }
 function render(){
   const here=S.players.filter(p=>p.st!=='left').length;
@@ -606,7 +644,9 @@ const H={
   copyLink:()=>{const u=viewURL();try{navigator.clipboard.writeText(u).then(()=>toast('คัดลอกลิงก์แล้ว'),()=>$('#vlink').select())}catch(e){$('#vlink').select()}},
   syncNewQR:async()=>{const old=SY.token;await removeView(old);SY.token=newToken();saveSync();await push();H.qr();toast('สร้าง QR ใหม่แล้ว')},
   syncOff:async()=>{await removeView(SY.token);SY.on=false;saveSync();setSync('off');H.qr();toast('หยุดแชร์คิวแล้ว')},
-  bulk:()=>{const names=$('#pbulk').value.split(/\n|,/).map(s=>s.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean);if(!names.length)return;act(()=>{names.forEach(n=>addPlayer(n,2));if(S.opt.auto)fillAll()});toast(`เพิ่ม ${names.length} คน`)},
+  bulk:()=>{const names=$('#pbulk').value.split(/\n|,/).map(s=>s.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean);if(!names.length)return;act(()=>{names.forEach(n=>addPlayer(n,0));if(S.opt.auto)fillAll()});toast(`เพิ่ม ${names.length} คน`)},
+  histname:x=>{histQ=x;if(tab!=='sum'){tab='sum';render()}const i=$('#histq');if(i)i.value=x;const b=$('#histbody');if(b)b.innerHTML=histBody();$('#histpanel')?.scrollIntoView({behavior:'smooth',block:'start'})},
+  histclear:()=>{histQ='';const i=$('#histq');if(i)i.value='';const b=$('#histbody');if(b)b.innerHTML=histBody()},
   copy:()=>{
     const d=new Date(S.day).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
     const rows=S.players.filter(p=>p.g>0).sort((a,b)=>b.g-a.g).map(p=>`${p.name} ${p.g} เกม`);
@@ -627,6 +667,8 @@ document.addEventListener('submit',e=>{
   toast(`เพิ่ม ${p.name}`+(p.off?` · เริ่มนับที่ ${p.off} เกม`:''));
   $('#plv').value=lv; $('#pname').focus();
 });
+// Typing in the history search re-renders only the list, so the input keeps focus
+document.addEventListener('input',e=>{if(e.target.id==='histq'){histQ=e.target.value;$('#histbody').innerHTML=histBody()}});
 document.addEventListener('change',e=>{
   if(e.target.id==='optauto')act(()=>{S.opt.auto=e.target.checked});
   if(e.target.id==='optclub')act(()=>{S.opt.club=e.target.value.trim()});
