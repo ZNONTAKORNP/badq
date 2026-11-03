@@ -73,7 +73,15 @@ main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
 .net{position:relative}
 .net::before{content:"";position:absolute;left:50%;top:-6px;bottom:-6px;width:0;border-left:3px dashed #fff;transform:translateX(-50%)}
 .side{display:flex;flex-direction:column;justify-content:space-around;gap:8px;padding:10px 8px;position:relative;z-index:1}
-.pc{display:block;width:100%;text-align:left;border:0;border-radius:10px;background:var(--chip);color:var(--chip-ink);padding:8px 10px;box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.pc{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-radius:10px;background:var(--chip);color:var(--chip-ink);padding:8px 10px;box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.pt{min-width:0;display:block}
+.av{flex:none;width:34px;height:34px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink);font-family:var(--font-display);font-weight:700;font-size:15px;line-height:1}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.pc .av{background:var(--court);color:#fff}
+.av.lg{width:88px;height:88px;font-size:34px}
+.photo-row{display:flex;align-items:center;gap:14px}
+.photo-row .row2{flex:1}
+label.btn{display:inline-flex;align-items:center;justify-content:center;text-align:center}
 .pn{display:block;font-weight:600;font-size:16px;line-height:1.25;overflow-wrap:anywhere}
 .pm{display:block;font-size:12.5px;color:var(--chip-sub);font-variant-numeric:tabular-nums}
 .pm b{color:var(--chip-ink);font-weight:600}
@@ -102,7 +110,7 @@ main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
 .pair span{overflow-wrap:anywhere}
 .vs{font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--accent-ink);opacity:.7}
 .ql{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.qi{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;text-align:left;background:var(--bg);border:1px solid transparent;border-radius:10px;padding:8px 10px}
+.qi{display:grid;grid-template-columns:28px 34px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;text-align:left;background:var(--bg);border:1px solid transparent;border-radius:10px;padding:8px 10px}
 .qi.up{border-color:var(--accent)}
 .qn{font-family:var(--font-display);font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);text-align:center}
 .qi.up .qn{color:var(--accent-ink);background:var(--accent);border-radius:6px}
@@ -122,7 +130,7 @@ textarea{resize:vertical}
 details summary{cursor:pointer;color:var(--muted);font-size:14px}
 details[open]{display:flex;flex-direction:column;gap:8px}
 .plist{display:flex;flex-direction:column;gap:6px}
-.prow{display:grid;grid-template-columns:minmax(0,1fr) auto 52px;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.prow{display:grid;grid-template-columns:34px minmax(0,1fr) auto 52px;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .prow.left{opacity:.55}
 .pill{font-size:12.5px;font-weight:600;border-radius:999px;padding:2px 10px;white-space:nowrap}
 .pill.play{background:var(--ok);color:#fff}
@@ -227,6 +235,28 @@ const mins=t=>Math.max(0,Math.floor((Date.now()-t)/60000));
 const clock=t=>{const s=Math.max(0,Math.floor((Date.now()-t)/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 const hhmm=t=>new Date(t).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
 
+/* ---------- player photos ----------
+   Kept apart from S so undo snapshots stay small: { [playerId]: {d: jpeg data URL, v: version} } */
+const PHOTO_KEY='kiw-gang-bad-photos';
+const PHOTO_RE=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+let PH=(()=>{try{return JSON.parse(localStorage.getItem(PHOTO_KEY)||'{}')||{}}catch(e){return {}}})();
+function savePH(){try{localStorage.setItem(PHOTO_KEY,JSON.stringify(PH));return true}catch(e){return false}}
+// Shrink to a 128px square (biased toward the top of portraits, where faces are) so each photo is ~5-8 KB
+async function makeThumb(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+    const w=img.naturalWidth,h=img.naturalHeight,s=Math.min(w,h),c=document.createElement('canvas');
+    c.width=c.height=128;
+    c.getContext('2d').drawImage(img,(w-s)/2,(h-s)*0.3,s,s,0,0,128,128);
+    return c.toDataURL('image/jpeg',0.72);
+  }finally{URL.revokeObjectURL(url)}
+}
+// Initial for players without a photo; skips Thai leading vowels so "เจ" shows จ
+const initial=n=>esc(Array.from(String(n).replace(/^[เแโใไ]/,''))[0]||'?');
+function avHTML(name,src,cls=''){return `<span class="av${cls?' '+cls:''}" aria-hidden="true">${src&&PHOTO_RE.test(src)?`<img src="${src}" alt="">`:initial(name)}</span>`}
+const av=(p,cls)=>avHTML(p.name,PH[p.id]?.d,cls);
+
 /* ---------- state ---------- */
 function fresh(n=2){return {seq:0,nid:1,courts:Array.from({length:n},(_,i)=>({id:i+1,m:null})),players:[],hist:[],opt:{auto:true},demo:false,day:Date.now()}}
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(o&&o.S){S=o.S;UNDO=o.U||[];return true}}catch(e){}return false}
@@ -328,7 +358,7 @@ function demo(){
 }
 
 /* ---------- views ---------- */
-function chip(id,ci){const p=P(id);return `<button class="pc" data-a="tapcourt" data-x="${ci}:${id}"><span class="pn">${esc(p.name)}</span><span class="pm">เกมที่ <b>${p.g+1}</b> ของเขา · ${LV[p.lv]}</span></button>`}
+function chip(id,ci){const p=P(id);return `<button class="pc" data-a="tapcourt" data-x="${ci}:${id}">${av(p)}<span class="pt"><span class="pn">${esc(p.name)}</span><span class="pm">เกมที่ <b>${p.g+1}</b> · ${LV[p.lv]}</span></span></button>`}
 function courtHTML(c,i,nW){
   if(!c.m)return `<article class="court"><div class="ch"><span class="cn">สนาม ${c.id}</span><span class="clock">ว่าง</span></div>
     <div class="field"><div class="empty"><p>${nW>=4?'พร้อมส่ง 4 คนถัดไปลงสนาม':'ต้องมีคนรอคิวอย่างน้อย 4 คน'}</p>
@@ -346,7 +376,7 @@ function courtView(){
   <aside class="queue">
     <section class="panel next"><h2>ชุดถัดไป</h2>${nx?`<div class="nx"><div class="pair">${nx.a.map(p=>`<span>${esc(p.name)}</span>`).join('')}</div><span class="vs">VS</span><div class="pair" style="text-align:right">${nx.b.map(p=>`<span>${esc(p.name)}</span>`).join('')}</div></div><p class="hint" style="color:var(--accent-ink)">ลงสนามที่ว่างถัดไป เตรียมตัวได้เลย</p>`:`<p class="hint">รอคนในคิวให้ครบ 4 คน</p>`}</section>
     <section class="panel"><h2>รอคิว <span class="count">${W.length}</span></h2>
-      ${W.length?`<ol class="ql">${W.map((p,i)=>`<li><button class="qi${up.has(p.id)?' up':''}" data-a="tapp" data-x="${p.id}"><span class="qn">${i+1}</span><span><span class="qname">${esc(p.name)}</span><span class="lv">${LV[p.lv]}</span><br><span class="qmeta" data-wait="${p.since}">รอ ${mins(p.since)} นาที</span></span><span class="qg"><b>${p.g}</b><small>เกม</small></span></button></li>`).join('')}</ol>`:`<p class="hint">ทุกคนอยู่ในสนาม</p>`}
+      ${W.length?`<ol class="ql">${W.map((p,i)=>`<li><button class="qi${up.has(p.id)?' up':''}" data-a="tapp" data-x="${p.id}"><span class="qn">${i+1}</span>${av(p)}<span><span class="qname">${esc(p.name)}</span><span class="lv">${LV[p.lv]}</span><br><span class="qmeta" data-wait="${p.since}">รอ ${mins(p.since)} นาที</span></span><span class="qg"><b>${p.g}</b><small>เกม</small></span></button></li>`).join('')}</ol>`:`<p class="hint">ทุกคนอยู่ในสนาม</p>`}
     </section>
     ${rest.length?`<section class="panel"><h2>พักอยู่ <span class="count">${rest.length}</span></h2><div class="restrow">${rest.map(p=>`<button data-a="tapp" data-x="${p.id}">${esc(p.name)} · ${p.g}</button>`).join('')}</div><p class="hint">แตะชื่อเพื่อให้กลับมาเข้าคิว</p></section>`:''}
   </aside></div>`;
@@ -360,7 +390,7 @@ function playersView(){
     <button class="btn pri" type="submit">เพิ่ม</button></form>
     <details><summary>วางรายชื่อหลายคนพร้อมกัน</summary><textarea id="pbulk" rows="5" placeholder="บรรทัดละ 1 ชื่อ (วางจากกลุ่ม LINE ได้)"></textarea><button class="btn sec" data-a="bulk">เพิ่มทั้งหมด (มือ BG)</button></details>
     <p class="hint">คนที่มาทีหลังจะเริ่มนับเกมเท่ากับคนที่เล่นน้อยที่สุดตอนนั้น จะได้ไม่ลงติดกันหลายเกม</p></section>
-    <section class="plist">${list.map(p=>`<button class="prow ${p.st}" data-a="tapp" data-x="${p.id}"><span><span class="qname">${esc(p.name)}</span><span class="lv">${LV[p.lv]}</span></span><span class="pill ${p.st}">${ST[p.st]}</span><span class="qg"><b>${p.g}</b><small>เกม</small></span></button>`).join('')||'<p class="hint">ยังไม่มีรายชื่อ</p>'}</section>`;
+    <section class="plist">${list.map(p=>`<button class="prow ${p.st}" data-a="tapp" data-x="${p.id}">${av(p)}<span><span class="qname">${esc(p.name)}</span><span class="lv">${LV[p.lv]}</span></span><span class="pill ${p.st}">${ST[p.st]}</span><span class="qg"><b>${p.g}</b><small>เกม</small></span></button>`).join('')||'<p class="hint">ยังไม่มีรายชื่อ</p>'}</section>`;
 }
 function summaryView(){
   const played=S.players.filter(p=>p.g>0||p.st!=='left');
@@ -416,14 +446,14 @@ function openSheet(html){$('#sheetbody').innerHTML=html+`<button class="btn sec"
 function closeSheet(){$('#sheet').hidden=true}
 function subHTML(ci,id){
   const p=P(id),W=waiting(),c=S.courts[ci];
-  return `<h3>เปลี่ยนตัว ${esc(p.name)} ออก</h3><p class="hint">สนาม ${c.id} · เกมนี้เป็นเกมที่ ${p.g+1} ของเขา</p>
+  return `<div class="photo-row"><h3 style="flex:1">เปลี่ยนตัว ${esc(p.name)} ออก</h3><button class="btn sec" data-a="tapp" data-x="${id}">ข้อมูล/รูป</button></div><p class="hint">สนาม ${c.id} · เกมนี้เป็นเกมที่ ${p.g+1} ของเขา</p>
   <h4>${esc(p.name)} จะ</h4><div class="opts">
     <label><input type="radio" name="outst" value="left" checked> กลับบ้าน</label>
     <label><input type="radio" name="outst" value="rest"> พักก่อน</label>
     <label><input type="radio" name="outst" value="wait"> กลับไปรอคิว</label></div>
   <label class="chk"><input type="checkbox" id="subcount"> นับเกมนี้ให้ ${esc(p.name)} ด้วย</label>
   <h4>เลือกคนลงแทน (คนที่เล่นน้อยและรอนานอยู่บนสุด)</h4>
-  ${W.length?`<div class="picks">${W.map((q,i)=>`<button class="qi${i===0?' up':''}" data-a="subin" data-x="${ci}:${id}:${q.id}"><span class="qn">${i+1}</span><span><span class="qname">${esc(q.name)}</span><span class="lv">${LV[q.lv]}</span>${i===0?' <span class="tag">แนะนำ</span>':''}</span><span class="qg"><b>${q.g}</b><small>เกม</small></span></button>`).join('')}</div>`
+  ${W.length?`<div class="picks">${W.map((q,i)=>`<button class="qi${i===0?' up':''}" data-a="subin" data-x="${ci}:${id}:${q.id}"><span class="qn">${i+1}</span>${av(q)}<span><span class="qname">${esc(q.name)}</span><span class="lv">${LV[q.lv]}</span>${i===0?' <span class="tag">แนะนำ</span>':''}</span><span class="qg"><b>${q.g}</b><small>เกม</small></span></button>`).join('')}</div>`
   :`<p class="hint">ไม่มีใครรอคิวอยู่ ถ้าต้องหยุดเกมนี้ให้กดยกเลิกเกม</p><button class="btn warn" data-a="cancel" data-x="${ci}">ยกเลิกเกมนี้</button>`}`;
 }
 function playerHTML(id){
@@ -434,7 +464,8 @@ function playerHTML(id){
     rest:`<button class="btn pri" data-a="setst" data-x="${id}:wait">กลับมาเข้าคิว</button><button class="btn sec" data-a="setst" data-x="${id}:left">กลับบ้าน</button>`,
     left:`<button class="btn pri" data-a="setst" data-x="${id}:wait">กลับมาเล่น</button>`
   }[p.st];
-  return `<h3>${esc(p.name)}</h3><p class="hint">${ST[p.st]} · เล่นไปแล้ว ${p.g} เกม${p.off?` · เครดิตมาสาย ${p.off} เกม`:''}</p>
+  return `<div class="photo-row">${av(p,'lg')}<div><h3>${esc(p.name)}</h3><div class="row2" style="margin-top:8px"><label class="btn sec" for="pphoto">${PH[id]?'เปลี่ยนรูป':'ถ่าย/เลือกรูป'}</label><input type="file" id="pphoto" accept="image/*" data-id="${id}" hidden>${PH[id]?`<button class="btn sec" data-a="delphoto" data-x="${id}">ลบรูป</button>`:''}</div></div></div>
+  <p class="hint">${ST[p.st]} · เล่นไปแล้ว ${p.g} เกม${p.off?` · เครดิตมาสาย ${p.off} เกม`:''}</p>
   <div class="row2">${acts}</div>
   <h4>จำนวนเกม (แก้ถ้านับผิด)</h4><div class="stepper"><button data-a="gm" data-x="${id}:-1" aria-label="ลดเกม">−</button><b>${p.g}</b><button data-a="gm" data-x="${id}:1" aria-label="เพิ่มเกม">+</button></div>
   <h4>แก้ไขข้อมูล</h4><div class="addrow"><input type="text" id="ename" value="${esc(p.name)}" aria-label="ชื่อ"><select id="elv" aria-label="ระดับมือ">${LV.map((l,i)=>`<option value="${i}" ${i===p.lv?'selected':''}>${l}</option>`).join('')}</select><button class="btn sec" data-a="saveP" data-x="${id}">บันทึก</button></div>
@@ -492,10 +523,10 @@ async function idToken(){
   if(!r.ok)throw new Error(authMsg(j.error&&j.error.message));
   Object.assign(SY,{id:j.idToken,refresh:j.refreshToken,uid:j.localId,exp:Date.now()+(+j.expiresIn)*1000});saveSync();return SY.id;
 }
-// What players see: no ids, phone numbers or history, only names, levels and game counts.
+// What players see: names, levels, game counts and photo versions; no phone numbers or history.
 function snapshot(){
-  const nx=pick(), pl=p=>({n:p.name,g:p.g,l:p.lv});
-  return {uid:SY.uid,at:Date.now(),club:S.opt.club||'',games:S.hist.length,
+  const nx=pick(), pl=p=>({i:p.id,n:p.name,g:p.g,l:p.lv,p:PH[p.id]?.v||0});
+  return {at:Date.now(),club:S.opt.club||'',games:S.hist.length,
     courts:S.courts.map(c=>({id:c.id,t:c.m?c.m.t:0,a:c.m?c.m.a.map(id=>pl(P(id))):[],b:c.m?c.m.b.map(id=>pl(P(id))):[]})),
     next:nx?{a:nx.a.map(p=>p.name),b:nx.b.map(p=>p.name)}:null,
     queue:waiting().map(p=>({...pl(p),s:p.since})),
@@ -508,7 +539,21 @@ async function push(){
   pushing=true; setSync('busy');
   try{
     const tok=await idToken();
-    const r=await fetch(`${SY.db}/views/${SY.token}.json?auth=${encodeURIComponent(tok)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot())});
+    const base=`${SY.db}/views/${SY.token}`,auth=`?auth=${encodeURIComponent(tok)}`;
+    // PATCH keeps the photos stored beside the snapshot; uid marks this device as the view's owner
+    let r=await fetch(`${base}.json${auth}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:SY.uid,s:snapshot()})});
+    // Photos go up once per version, not with every queue change
+    SY.phSent=SY.phSent||{};
+    for(const [id,ph] of Object.entries(PH)){
+      if(!r.ok||SY.phSent[id]===ph.v||!P(+id))continue;
+      r=await fetch(`${base}/ph/${id}.json${auth}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(ph.d)});
+      if(r.ok){SY.phSent[id]=ph.v;saveSync()}
+    }
+    for(const id of Object.keys(SY.phSent)){
+      if(!r.ok||(PH[id]&&P(+id)))continue;
+      r=await fetch(`${base}/ph/${id}.json${auth}`,{method:'DELETE'});
+      if(r.ok){delete SY.phSent[id];saveSync()}
+    }
     if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status===401||r.status===403?'ไม่มีสิทธิ์เขียน: ตรวจ Rules ของ Realtime Database หรือกด "สร้าง QR ใหม่" ถ้าเปลี่ยนเครื่อง':('Firebase ตอบกลับ: '+(j.error||r.status)))}
     syncAt=Date.now(); setSync('ok');
   }catch(e){
@@ -552,7 +597,8 @@ function viewer(token,dbHost){
   document.querySelectorAll('[data-org]').forEach(e=>e.hidden=true);
   const base='https://'+dbHost;
   if(!dbOk(base)||!/^[a-z0-9]{6,40}$/.test(token)){$('#app').innerHTML='<section class="panel"><h2>ลิงก์ไม่ถูกต้อง</h2><p class="hint">สแกน QR จากผู้จัดก๊วนอีกครั้ง</p></section>';return}
-  const url=`${base}/views/${token}.json`;
+  VBASE=`${base}/views/${token}`;
+  const url=`${VBASE}/s.json`;
   $('#app').innerHTML='<section class="panel"><h2>กำลังโหลดคิว…</h2></section>';
   const refetch=()=>fetch(url).then(r=>r.json()).then(d=>{V=d;vrender()}).catch(()=>{});
   const es=new EventSource(url);
@@ -561,7 +607,16 @@ function viewer(token,dbHost){
   es.onerror=()=>{const s=$('#sub');if(s)s.textContent='การเชื่อมต่อหลุด กำลังต่อใหม่…'};
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refetch()});
 }
-function vchip(p){return `<div class="pc${p.n===ME?' mine':''}"><span class="pn">${esc(p.n)}</span><span class="pm">เกมที่ <b>${(+p.g||0)+1}</b> ของเขา · ${LV[+p.l]||''}</span></div>`}
+// Photos load once per (player, version) and are cached; the queue snapshot only carries the version number
+let VBASE='',VP={},vpWant=new Set(),vpT=null;
+function vphoto(p){
+  const id=+p.i,v=+p.p||0; if(!id||!v)return null;
+  const c=VP[id]; if(c&&c.v===v)return c.d;
+  const k=id+':'+v;
+  if(!vpWant.has(k)){vpWant.add(k);fetch(`${VBASE}/ph/${id}.json`).then(r=>r.json()).then(d=>{if(typeof d==='string'&&PHOTO_RE.test(d)){VP[id]={v,d};clearTimeout(vpT);vpT=setTimeout(vrender,150)}}).catch(()=>{})}
+  return c?c.d:null;
+}
+function vchip(p){return `<div class="pc${p.n===ME?' mine':''}">${avHTML(p.n,vphoto(p))}<span class="pt"><span class="pn">${esc(p.n)}</span><span class="pm">เกมที่ <b>${(+p.g||0)+1}</b> · ${LV[+p.l]||''}</span></span></div>`}
 function vtick(){const s=$('#sub');if(VIEWER&&s&&V)s.textContent=`ดูคิว · อัปเดต ${hhmm(V.at)} · จบไปแล้ว ${+V.games||0} เกม`}
 function vrender(){
   if(!V){$('#app').innerHTML='<section class="panel"><h2>ยังไม่มีคิวให้ดู</h2><p class="hint">ผู้จัดก๊วนยังไม่ได้เริ่ม หรือหยุดแชร์คิวแล้ว</p></section>';return}
@@ -591,7 +646,7 @@ function vrender(){
       :`<article class="court"><div class="ch"><span class="cn">สนาม ${+c.id}</span><span class="clock">ว่าง</span></div><div class="field"><div class="empty"><p>รอผู้จัดส่งคนลงสนาม</p></div></div></article>`).join('')}</section>
     <aside class="queue">
       <section class="panel next"><h2>ชุดถัดไป</h2>${nx?`<div class="nx"><div class="pair">${(nx.a||[]).map(n=>`<span${n===ME?' class="mine"':''}>${esc(n)}</span>`).join('')}</div><span class="vs">VS</span><div class="pair" style="text-align:right">${(nx.b||[]).map(n=>`<span${n===ME?' class="mine"':''}>${esc(n)}</span>`).join('')}</div></div>`:'<p class="hint">รอคนในคิวให้ครบ 4 คน</p>'}</section>
-      <section class="panel"><h2>รอคิว <span class="count">${queue.length}</span></h2>${queue.length?`<ol class="ql">${queue.map((p,i)=>`<li><div class="qi${p.n===ME?' mine':''}"><span class="qn">${i+1}</span><span><span class="qname">${esc(p.n)}</span><span class="lv">${LV[+p.l]||''}</span><br><span class="qmeta" data-wait="${+p.s}">รอ ${mins(+p.s)} นาที</span></span><span class="qg"><b>${+p.g||0}</b><small>เกม</small></span></div></li>`).join('')}</ol>`:'<p class="hint">ทุกคนอยู่ในสนาม</p>'}</section>
+      <section class="panel"><h2>รอคิว <span class="count">${queue.length}</span></h2>${queue.length?`<ol class="ql">${queue.map((p,i)=>`<li><div class="qi${p.n===ME?' mine':''}"><span class="qn">${i+1}</span>${avHTML(p.n,vphoto(p))}<span><span class="qname">${esc(p.n)}</span><span class="lv">${LV[+p.l]||''}</span><br><span class="qmeta" data-wait="${+p.s}">รอ ${mins(+p.s)} นาที</span></span><span class="qg"><b>${+p.g||0}</b><small>เกม</small></span></div></li>`).join('')}</ol>`:'<p class="hint">ทุกคนอยู่ในสนาม</p>'}</section>
       ${rest.length?`<section class="panel"><h2>พักอยู่ <span class="count">${rest.length}</span></h2><p class="hint">${rest.map(p=>esc(p.n)+' · '+(+p.g||0)).join(', ')}</p></section>`:''}
       <p class="hint">หน้านี้ดูได้อย่างเดียว และอัปเดตเองทุกครั้งที่ผู้จัดกด</p>
     </aside></div>`;
@@ -611,11 +666,12 @@ const H={
   tapcourt:x=>{const [ci,id]=x.split(':').map(Number);openSheet(subHTML(ci,id))},
   subout:x=>{const [ci,id]=x.split(':').map(Number);openSheet(subHTML(ci,id))},
   subin:x=>{const [ci,o,i]=x.split(':').map(Number);const st=$('input[name=outst]:checked').value,cnt=$('#subcount').checked;closeSheet();act(()=>substitute(ci,o,i,st,cnt));toast(`${P(i).name} ลงแทน ${P(o).name}`)},
-  tapp:x=>{const id=+x,p=P(id);if(p.st==='play'){const ci=courtOf(id);openSheet(subHTML(ci,id))}else openSheet(playerHTML(id))},
+  tapp:x=>openSheet(playerHTML(+x)),
   setst:x=>{const [id,st]=x.split(':');closeSheet();act(()=>setStatus(P(+id),st));toast(`${P(+id).name}: ${ST[st]}`)},
   gm:x=>{const [id,d]=x.split(':').map(Number);act(()=>{const p=P(id);p.g=Math.max(0,p.g+d)});openSheet(playerHTML(id))},
   saveP:x=>{const n=$('#ename').value.trim(),lv=+$('#elv').value;if(!n)return;act(()=>{const p=P(+x);p.name=n;p.lv=lv});closeSheet()},
-  delP:x=>{closeSheet();act(()=>{S.players=S.players.filter(p=>p.id!==+x)})},
+  delP:x=>{closeSheet();delete PH[+x];savePH();act(()=>{S.players=S.players.filter(p=>p.id!==+x)})},
+  delphoto:x=>{delete PH[+x];savePH();schedulePush();render();openSheet(playerHTML(+x));toast('ลบรูปแล้ว')},
   courts:x=>{
     const d=+x;
     if(d>0){if(S.courts.length>=12)return;act(()=>{S.courts.push({id:Math.max(0,...S.courts.map(c=>c.id))+1,m:null});if(S.opt.auto)fillCourt(S.courts.length-1)})}
@@ -624,7 +680,7 @@ const H={
   },
   newday:x=>{const el=$('#confirm');el.hidden=false;el.innerHTML=`<b>${x==='keep'?'ล้างจำนวนเกมและประวัติ แต่เก็บรายชื่อไว้?':'ล้างรายชื่อ เกม และประวัติทั้งหมด?'}</b><span class="hint">กดย้อนกลับได้ถ้าเปลี่ยนใจ</span><button class="btn warn" data-a="newdayok" data-x="${x}">ยืนยัน</button>`},
   newdayok:x=>{closeSheet();act(()=>{
-    if(x==='all'){const n=S.courts.length,club=S.opt.club;S=fresh(n);S.opt.club=club;return}
+    if(x==='all'){const n=S.courts.length,club=S.opt.club;S=fresh(n);S.opt.club=club;PH={};savePH();return}
     S.courts.forEach(c=>c.m=null);S.hist=[];S.demo=false;S.day=Date.now();
     S.players.forEach(p=>{p.g=0;p.off=0;p.st='wait';p.since=Date.now()});
   });toast('เริ่มวันใหม่แล้ว')},
@@ -642,8 +698,8 @@ const H={
     H.qr();toast('เชื่อมต่อแล้ว ผู้เล่นสแกน QR ได้เลย');
   },
   copyLink:()=>{const u=viewURL();try{navigator.clipboard.writeText(u).then(()=>toast('คัดลอกลิงก์แล้ว'),()=>$('#vlink').select())}catch(e){$('#vlink').select()}},
-  syncNewQR:async()=>{const old=SY.token;await removeView(old);SY.token=newToken();saveSync();await push();H.qr();toast('สร้าง QR ใหม่แล้ว')},
-  syncOff:async()=>{await removeView(SY.token);SY.on=false;saveSync();setSync('off');H.qr();toast('หยุดแชร์คิวแล้ว')},
+  syncNewQR:async()=>{const old=SY.token;await removeView(old);SY.token=newToken();SY.phSent={};saveSync();await push();H.qr();toast('สร้าง QR ใหม่แล้ว')},
+  syncOff:async()=>{await removeView(SY.token);SY.on=false;SY.phSent={};saveSync();setSync('off');H.qr();toast('หยุดแชร์คิวแล้ว')},
   bulk:()=>{const names=$('#pbulk').value.split(/\n|,/).map(s=>s.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean);if(!names.length)return;act(()=>{names.forEach(n=>addPlayer(n,0));if(S.opt.auto)fillAll()});toast(`เพิ่ม ${names.length} คน`)},
   histname:x=>{histQ=x;if(tab!=='sum'){tab='sum';render()}const i=$('#histq');if(i)i.value=x;const b=$('#histbody');if(b)b.innerHTML=histBody();$('#histpanel')?.scrollIntoView({behavior:'smooth',block:'start'})},
   histclear:()=>{histQ='';const i=$('#histq');if(i)i.value='';const b=$('#histbody');if(b)b.innerHTML=histBody()},
@@ -670,6 +726,15 @@ document.addEventListener('submit',e=>{
 // Typing in the history search re-renders only the list, so the input keeps focus
 document.addEventListener('input',e=>{if(e.target.id==='histq'){histQ=e.target.value;$('#histbody').innerHTML=histBody()}});
 document.addEventListener('change',e=>{
+  if(e.target.id==='pphoto'){
+    const f=e.target.files&&e.target.files[0],id=+e.target.dataset.id; if(!f)return;
+    makeThumb(f).then(d=>{
+      const old=PH[id]; PH[id]={d,v:Date.now()};
+      if(!savePH()){if(old)PH[id]=old;else delete PH[id];return toast('ที่เก็บรูปในเครื่องเต็ม ลองลบรูปที่ไม่ใช้แล้ว')}
+      schedulePush();render();openSheet(playerHTML(id));toast('บันทึกรูปแล้ว');
+    }).catch(()=>toast('เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น'));
+    return;
+  }
   if(e.target.id==='optauto')act(()=>{S.opt.auto=e.target.checked});
   if(e.target.id==='optclub')act(()=>{S.opt.club=e.target.value.trim()});
   if(e.target.id==='mesel'){try{localStorage.setItem('kiw-me',e.target.value)}catch(err){}ME=e.target.value;vrender()}
